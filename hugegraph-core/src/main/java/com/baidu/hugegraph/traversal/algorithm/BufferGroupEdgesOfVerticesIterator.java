@@ -19,6 +19,13 @@
 
 package com.baidu.hugegraph.traversal.algorithm;
 
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import org.apache.tinkerpop.gremlin.structure.Edge;
+
 import com.baidu.hugegraph.backend.id.Id;
 import com.baidu.hugegraph.iterator.CIter;
 import com.baidu.hugegraph.structure.HugeEdge;
@@ -26,12 +33,6 @@ import com.baidu.hugegraph.type.define.CollectionType;
 import com.baidu.hugegraph.util.collection.CollectionFactory;
 import com.baidu.hugegraph.util.collection.MappingFactory;
 import com.baidu.hugegraph.util.collection.ObjectIntMapping;
-import org.apache.tinkerpop.gremlin.structure.Edge;
-
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class BufferGroupEdgesOfVerticesIterator implements Iterator<CIter<Edge>> {
      private static final int MAX_LOAD_ITEMS = 1000*10000;

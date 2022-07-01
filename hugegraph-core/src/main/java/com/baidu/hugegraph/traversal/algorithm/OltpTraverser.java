@@ -19,20 +19,23 @@
 
 package com.baidu.hugegraph.traversal.algorithm;
 
-import com.baidu.hugegraph.HugeGraph;
-import com.baidu.hugegraph.backend.id.Id;
-import com.baidu.hugegraph.config.CoreOptions;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Consumer;
+
+import javax.ws.rs.core.MultivaluedMap;
+
 import com.baidu.hugegraph.iterator.CIter;
-import com.baidu.hugegraph.iterator.FilterIterator;
 import com.baidu.hugegraph.structure.HugeEdge;
 import com.baidu.hugegraph.traversal.algorithm.steps.EdgeStep;
 import com.baidu.hugegraph.traversal.algorithm.steps.WeightedEdgeStep;
 import com.baidu.hugegraph.type.define.Directions;
 import com.baidu.hugegraph.util.CollectionUtil;
-import com.baidu.hugegraph.util.Consumers;
 import com.baidu.hugegraph.util.E;
 import com.google.common.collect.ImmutableSet;
-import jersey.repackaged.com.google.common.base.Objects;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.tinkerpop.gremlin.structure.Edge;
 import org.apache.tinkerpop.gremlin.structure.Element;
@@ -40,13 +43,13 @@ import org.apache.tinkerpop.gremlin.structure.Property;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.apache.tinkerpop.gremlin.structure.util.CloseableIterator;
 
-import javax.ws.rs.core.MultivaluedMap;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.Consumer;
+import com.baidu.hugegraph.HugeGraph;
+import com.baidu.hugegraph.backend.id.Id;
+import com.baidu.hugegraph.config.CoreOptions;
+import com.baidu.hugegraph.iterator.FilterIterator;
+import com.baidu.hugegraph.util.Consumers;
+
+import jersey.repackaged.com.google.common.base.Objects;
 
 public abstract class OltpTraverser extends HugeTraverser
                                     implements AutoCloseable {

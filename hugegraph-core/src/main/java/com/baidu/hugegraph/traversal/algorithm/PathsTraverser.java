@@ -20,6 +20,7 @@
 package com.baidu.hugegraph.traversal.algorithm;
 
 import java.util.Iterator;
+import java.util.List;
 
 import org.apache.tinkerpop.gremlin.structure.Edge;
 
@@ -30,8 +31,9 @@ import com.baidu.hugegraph.structure.HugeEdge;
 import com.baidu.hugegraph.traversal.algorithm.records.PathsRecords;
 import com.baidu.hugegraph.type.define.Directions;
 import com.baidu.hugegraph.util.E;
+import com.baidu.hugegraph.iterator.CIter;
 
-public class PathsTraverser extends HugeTraverser {
+public class PathsTraverser extends OltpTraverser {
 
     public PathsTraverser(HugeGraph graph) {
         super(graph);
@@ -82,6 +84,113 @@ public class PathsTraverser extends HugeTraverser {
         return paths;
     }
 
+    private class AdjacentVerticesBatchConsumerForward
+            extends AdjacentVerticesBatchConsumer {
+
+        private Traverser traverser;
+        public AdjacentVerticesBatchConsumerForward(Traverser traverser) {
+            super(null, null, NO_LIMIT, null);
+            this.traverser = traverser;
+        }
+
+        @Override
+        public void accept(CIter<Edge> edges) {
+            if (this.traverser.reachLimit()) {
+                return;
+            }
+            if (this.traverser.record.hasNextKey()) {
+                this.traverser.record.nextKey();
+            } else {
+                return;
+            }
+
+            long degree = 0;
+            Id ownerId = null;
+
+            while (!this.traverser.reachLimit() && edges.hasNext()) {
+                edgeIterCounter++;
+                degree++;
+                HugeEdge e = (HugeEdge) edges.next();
+
+                Id owner = e.id().ownerVertexId();
+                if (ownerId == null || ownerId.compareTo(owner) != 0) {
+                    vertexIterCounter++;
+                    this.avgDegree = this.avgDegreeRatio * this.avgDegree + (1 - this.avgDegreeRatio) * degree;
+                    degree = 0;
+                    ownerId = owner;
+                }
+
+                Id target = e.id().otherVertexId();
+
+                LOG.debug("Go forward, vid {}, edge {}, targetId {}",
+                          owner, e, target);
+                PathSet results = this.traverser.record.findPath(target, null,
+                                                                 true, false);
+                LOG.debug("current depth's path size= {}", results.size());
+                for (Path path : results) {
+                    this.traverser.paths.add(path);
+                    if (this.traverser.reachLimit()) {
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+    private class AdjacentVerticesBatchConsumerBackword
+            extends AdjacentVerticesBatchConsumer {
+
+        private Traverser traverser;
+        public AdjacentVerticesBatchConsumerBackword(Traverser traverser) {
+            super(null, null, NO_LIMIT, null);
+            this.traverser = traverser;
+        }
+
+        @Override
+        public void accept(CIter<Edge> edges) {
+            if (this.traverser.reachLimit()) {
+                return;
+            }
+            if (this.traverser.record.hasNextKey()) {
+                this.traverser.record.nextKey();
+            } else {
+                return;
+            }
+
+
+            long degree = 0;
+            Id ownerId = null;
+
+            while (!this.traverser.reachLimit() && edges.hasNext()) {
+                edgeIterCounter++;
+                degree++;
+                HugeEdge e = (HugeEdge) edges.next();
+
+                Id owner = e.id().ownerVertexId();
+                if (ownerId == null || ownerId.compareTo(owner) != 0) {
+                    vertexIterCounter++;
+                    this.avgDegree = this.avgDegreeRatio * this.avgDegree + (1 - this.avgDegreeRatio) * degree;
+                    degree = 0;
+                    ownerId = owner;
+                }
+
+                Id target = e.id().otherVertexId();
+
+                LOG.debug("Go back, vid {}, edge {}, targetId {}",
+                          owner, e, target);
+                PathSet results = this.traverser.record.findPath(target,
+                                                                 null,
+                                                                 true, false);
+                for (Path path : results) {
+                    this.traverser.paths.add(path);
+                    if (this.traverser.reachLimit()) {
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
     private class Traverser {
 
         private final PathsRecords record;
@@ -112,6 +221,10 @@ public class PathsTraverser extends HugeTraverser {
             Iterator<Edge> edges;
 
             this.record.startOneLayer(true);
+
+
+           List<Id> vids = newList();
+
             while (this.record.hasNextKey()) {
                 Id vid = this.record.nextKey();
                 if (vid.equals(targetV)) {
@@ -119,25 +232,21 @@ public class PathsTraverser extends HugeTraverser {
                     continue;
                 }
 
-                edges = edgesOfVertex(vid, direction, this.label, this.degree, false);
-
-                while (edges.hasNext()) {
-                    HugeEdge edge = (HugeEdge) edges.next();
-                    Id target = edge.id().otherVertexId();
-
-                    LOG.debug("Go forward, vid {}, edge {}, targetId {}",
-                              vid, edge, target);
-                    PathSet results = this.record.findPath(target, null,
-                                                           true, false);
-                    LOG.debug("current depth's path size= {}", results.size());
-                    for (Path path : results) {
-                        this.paths.add(path);
-                        if (this.reachLimit()) {
-                            return;
-                        }
-                    }
-                }
+                vids.add(vid);
             }
+            this.record.resetOneLayer();
+
+            EdgesOfVerticesIterator edgeIts = edgesOfVertices(vids.iterator(), direction,
+                                                              this.label, NO_LIMIT,
+                                                              false);
+
+            BufferGroupEdgesOfVerticesIterator bufferEdgeIts = new BufferGroupEdgesOfVerticesIterator(edgeIts, vids);
+            AdjacentVerticesBatchConsumer consumer =
+                    new AdjacentVerticesBatchConsumerForward(this);
+
+            edgeIts.setAvgDegreeSupplier(consumer::getAvgDegree);
+            traverseBatchCurrentThread(bufferEdgeIts, consumer, "traverse-ite-edge", 1);
+
             this.record.finishOneLayer();
         }
 
@@ -149,6 +258,9 @@ public class PathsTraverser extends HugeTraverser {
             Iterator<Edge> edges;
 
             this.record.startOneLayer(false);
+
+            List<Id> vids = newList();
+
             while (this.record.hasNextKey()) {
                 Id vid = this.record.nextKey();
                 if (vid.equals(sourceV)) {
@@ -156,24 +268,22 @@ public class PathsTraverser extends HugeTraverser {
                     continue;
                 }
 
-                edges = edgesOfVertex(vid, direction, this.label, this.degree, false);
-
-                while (edges.hasNext()) {
-                    HugeEdge edge = (HugeEdge) edges.next();
-                    Id target = edge.id().otherVertexId();
-
-                    LOG.debug("Go back, vid {}, edge {}, targetId {}",
-                              vid, edge, target);
-                    PathSet results = this.record.findPath(target, null,
-                                                           true, false);
-                    for (Path path : results) {
-                        this.paths.add(path);
-                        if (this.reachLimit()) {
-                            return;
-                        }
-                    }
-                }
+                vids.add(vid);
             }
+            this.record.resetOneLayer();
+
+            EdgesOfVerticesIterator edgeIts = edgesOfVertices(vids.iterator(), direction,
+                                                              this.label,
+                                                              this.degree,
+                                                              false);
+            BufferGroupEdgesOfVerticesIterator bufferEdgeIts = new BufferGroupEdgesOfVerticesIterator(edgeIts, vids,
+                                                                                                      this.degree);
+
+            AdjacentVerticesBatchConsumer consumer =
+                    new AdjacentVerticesBatchConsumerBackword(this);
+
+            edgeIts.setAvgDegreeSupplier(consumer::getAvgDegree);
+            traverseBatch(bufferEdgeIts, consumer, "traverse-ite-edge", 1);
 
             this.record.finishOneLayer();
         }

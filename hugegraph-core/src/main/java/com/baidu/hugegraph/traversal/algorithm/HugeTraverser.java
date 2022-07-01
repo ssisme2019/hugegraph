@@ -34,7 +34,6 @@ import java.util.function.Supplier;
 import javax.ws.rs.core.MultivaluedHashMap;
 import javax.ws.rs.core.MultivaluedMap;
 
-import com.baidu.hugegraph.iterator.CIter;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.tinkerpop.gremlin.structure.Edge;
 import org.slf4j.Logger;
@@ -49,6 +48,7 @@ import com.baidu.hugegraph.backend.query.QueryResults;
 import com.baidu.hugegraph.backend.tx.GraphTransaction;
 import com.baidu.hugegraph.config.CoreOptions;
 import com.baidu.hugegraph.exception.NotFoundException;
+import com.baidu.hugegraph.iterator.CIter;
 import com.baidu.hugegraph.iterator.ExtendableIterator;
 import com.baidu.hugegraph.iterator.FilterIterator;
 import com.baidu.hugegraph.iterator.LimitIterator;
@@ -108,7 +108,11 @@ public class HugeTraverser {
     public HugeTraverser(HugeGraph graph) {
         this.graph = graph;
         if (collectionFactory == null) {
-            collectionFactory = new CollectionFactory(this.collectionType());
+            synchronized (HugeTraverser.class) {
+                if (collectionFactory == null) {
+                    collectionFactory = new CollectionFactory(this.collectionType());
+                }
+            }
         }
     }
 
@@ -174,11 +178,28 @@ public class HugeTraverser {
     }
 
     @Watched
+    protected EdgesOfVerticesIterator edgesOfVertices(Iterator<Id> sources,
+                                                      Directions dir,
+                                                      List<Id> labels, long limit,
+                                                      boolean withEdgeProperties) {
+
+        return new EdgesOfVerticesIterator(sources, dir,
+                labels == null ? null : labels.toArray(new Id[labels.size()]), limit, withEdgeProperties);
+    }
+
+    @Watched
     protected EdgesOfVerticesIterator edgesOfVertices(Set<Id> sources, Directions dir,
                                            Id label, long limit,
                                            boolean withEdgeProperties) {
 
         return new EdgesOfVerticesIterator(sources, dir, label, limit, withEdgeProperties);
+    }
+
+    /**
+     * @author xhtian
+     */
+    protected EdgesOfVerticesIterator edgesOfVerticesAF(Iterator<Id> sources, Steps steps, boolean withEdgeProperties){
+        return new EdgesOfVerticesIterator(sources, steps, withEdgeProperties);
     }
 
     public class EdgesOfVerticesIterator implements Iterator<CIter<Edge>> {
@@ -193,7 +214,30 @@ public class HugeTraverser {
         private Iterator<Id> sources;
         private Iterator<CIter<Edge>> currentIt;
         private Supplier<Double> avgDegreeSupplier;
+        private Steps steps; //xhtian add
 
+        /**
+         * @author xhtian
+         */
+        public EdgesOfVerticesIterator(Set<Id> sources, Steps steps, boolean withEdgeProperties ){
+            this(sources.iterator(), steps, withEdgeProperties);
+
+        }
+
+        /**
+         * @author xhtian
+         */
+        public EdgesOfVerticesIterator(Iterator<Id> sources, Steps steps, boolean withEdgeProperties){
+            this.steps = this.steps;
+            this.sources = sources;
+            this.dir = steps.direction();
+            this.limit = steps.limit();
+            this.labels = steps.edgeLabels();
+            this.withEdgeProperties = withEdgeProperties;
+            this.defaultBatchSize = graph().option(CoreOptions.OLTP_QUERY_BATCH_SIZE);
+            this.expectDegreePerBatch = graph().option(CoreOptions.OLTP_QUERY_BATCH_EXPECT_DEGREE);
+            this.batchSizeRatio = graph().option(CoreOptions.OLTP_QUERY_BATCH_AVG_DEGREE_RATIO);
+        }
 
         public EdgesOfVerticesIterator(Set<Id> sources, Directions dir,
                                        Id label, long limit,
@@ -204,9 +248,15 @@ public class HugeTraverser {
         public EdgesOfVerticesIterator(Iterator<Id> sources, Directions dir,
                                        Id label, long limit,
                                        boolean withEdgeProperties) {
+            this(sources, dir, label == null ? null : new Id[] {label}, limit, withEdgeProperties);
+        }
+
+        public EdgesOfVerticesIterator(Iterator<Id> sources, Directions dir,
+                                       Id[] labels, long limit,
+                                       boolean withEdgeProperties) {
             this.sources = sources;
-            if (label != null) {
-                labels = new Id[]{label};
+            if (labels != null) {
+                this.labels = labels;
             }
             this.dir = dir;
             this.limit = limit;
