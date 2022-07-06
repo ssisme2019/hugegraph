@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 
+import com.baidu.hugegraph.meta.lock.AbstractDistributedLock;
 import org.apache.commons.io.FileUtils;
 
 import com.baidu.hugegraph.HugeException;
@@ -37,7 +38,6 @@ import com.baidu.hugegraph.meta.lock.LockResult;
 import com.baidu.hugegraph.type.define.CollectionType;
 import com.baidu.hugegraph.util.E;
 import com.baidu.hugegraph.util.collection.CollectionFactory;
-import com.carrotsearch.hppc.CharSet;
 import com.google.common.base.Strings;
 
 import io.etcd.jetcd.ByteSequence;

@@ -94,7 +94,7 @@ public class HugeGraphServer {
             clientCaFile = null;
             clientKeyFile = null;
         }
-        this.metaManager.connect(cluster, MetaManager.MetaDriverType.ETCD,
+        this.metaManager.connect(cluster, MetaManager.MetaDriverType.PD,
                                  caFile, clientCaFile, clientKeyFile,
                                  metaEndpoints);
 

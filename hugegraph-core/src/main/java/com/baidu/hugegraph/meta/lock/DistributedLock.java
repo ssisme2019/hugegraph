@@ -35,7 +35,7 @@ import io.etcd.jetcd.Lease;
 import io.etcd.jetcd.Lock;
 import io.etcd.jetcd.lock.LockResponse;
 
-public class DistributedLock {
+public class DistributedLock extends  AbstractDistributedLock {
 
     protected static final Logger LOG = Log.logger(DistributedLock.class);
 
@@ -45,7 +45,7 @@ public class DistributedLock {
     private Lock lockClient;
     private Lease leaseClient;
 
-    private DistributedLock(Client client) {
+    public DistributedLock(Client client) {
         this.lockClient = client.getLockClient();
         this.leaseClient = client.getLeaseClient();
     }
@@ -59,6 +59,7 @@ public class DistributedLock {
         return lockProvider;
     }
 
+    @Override
     public LockResult lock(String lockName, long ttl) {
         LockResult lockResult = new LockResult();
         ScheduledExecutorService service =
@@ -95,7 +96,7 @@ public class DistributedLock {
 
         return lockResult;
     }
-
+    @Override
     public void unLock(String lockName, LockResult lockResult) {
         LOG.debug("Thread {} start to unlock {}",
                   Thread.currentThread().getName(), lockName);
